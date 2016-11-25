@@ -24,8 +24,7 @@ class DI implements ArrayAccess {
 		// 检测有没有注册该服务
 		if (!isset(self::$_binding[$name])) {
 			$msg = "<<".$name.">> must be set";
-			trigger_error($msg);
-			return null;
+			throw new Exception($msg);
 		}
 
 		$concrete = self::$_binding[$name]['class'];
@@ -33,13 +32,19 @@ class DI implements ArrayAccess {
 		$obj = null;
 
 		// 匿名函数
-		if ($concrete instanceof \Closure) {
+		if ($concrete instanceof Closure) {
 			$obj = call_user_func_array($concrete, $param);
 		} else if (is_string($concrete)) {	// 如果是字符串
+			if (!class_exists($concrete)) {
+				throw new Exception("<<".$concrete.">> don't exists");
+			}
 			if (empty($param)) {	// 参数为空 意味着实例化不需要参数直接实例化
 				$obj = new $concrete;
 			} else {	// 当有参数时，使用反射，原因在于当实例化需要多个参数时，无法直接实例化(不能提前预知到底有多少个参数)
 				$class = new ReflectionClass($concrete);
+				if(!$class->isInstantiable()) {
+					throw new Exception("Can't instantiate this.");
+				}
 				$obj = $class->newInstanceArgs($param);
 			}
 		}
@@ -108,7 +113,7 @@ class DI implements ArrayAccess {
 	{
 		// 首先删除服务
 		self::remove($name);
-		if (!($class instanceof \Closure) && is_object($class)) {
+		if (!($class instanceof Closure) && is_object($class)) {
 			self::$_instances[$name] = $class;
 		} else {
 			self::$_binding[$name] = array('class' => $class, 'param' => $param, 'shared' => $shared);
@@ -156,3 +161,23 @@ class DI implements ArrayAccess {
 		return self::remove($offset);
 	}
 }
+
+class A
+{
+	public function abc()
+	{
+		echo 'a';
+	}
+}
+
+$di = new DI();
+$di->set('B', function(){
+	return new A();
+});
+var_dump($di->get('B'));
+
+
+
+
+
+
